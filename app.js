@@ -19,7 +19,8 @@ const CATS = [
   { id: "lat", nm: "Frios e laticínios", short: "Laticínios", em: "🧀" }, { id: "merc", nm: "Mercearia", em: "🍚" },
   { id: "bebidas", nm: "Bebidas", em: "🥤" }, { id: "limpeza", nm: "Limpeza", em: "🧽" },
   { id: "higiene", nm: "Higiene", em: "🧼" }, { id: "padaria", nm: "Padaria", em: "🥖" },
-  { id: "outros", nm: "Outros", em: "🛒" },
+  { id: "congelados", nm: "Congelados", em: "🧊" }, { id: "pet", nm: "Pet", em: "🐾" },
+  { id: "utilidades", nm: "Utilidades", em: "🏠" }, { id: "outros", nm: "Outros", em: "🛒" },
 ];
 const cat = (id) => CATS.find((c) => c.id === id) || CATS.at(-1);
 const fmt = (v) => Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -54,7 +55,7 @@ const saveList = () => ls.set("lista", S.list);
 /* ================= DADOS ================= */
 async function loadMeta() {
   const [m, st, rc, rs] = await Promise.all([
-    sb.from("mercados").select("cnpj,nome,bairro,cidade").order("nome"),
+    sb.from("mercados").select("cnpj,nome,endereco,bairro,cidade").order("nome"),
     sb.rpc("estatisticas"),
     sb.from("notas_recentes").select("*"),
     sb.from("resumo_mercados").select("*"),
@@ -118,7 +119,7 @@ function vHome() {
     <span class="arrow">›</span>
   </button>
   <section class="sec"><div class="sec-h"><h2>Categorias</h2></div>
-    <div class="cats">${CATS.slice(0, 8).map((c) => `<button class="cat" data-act="goCat" data-v="${c.id}"><span class="em">${c.em}</span>${c.short || c.nm}</button>`).join("")}</div>
+    <div class="cats">${CATS.filter((c) => c.id !== "outros").map((c) => `<button class="cat" data-act="goCat" data-v="${c.id}"><span class="em">${c.em}</span>${c.short || c.nm}</button>`).join("")}</div>
   </section>
   ${S.recentes.length ? `<section class="sec"><div class="sec-h"><h2>Notas que acabaram de chegar</h2></div>
     <div class="feed">${S.recentes.slice(0, 6).map((r) => `<div class="feed-row"><span class="pulse"></span><div><b>${esc(r.mercado)}</b> · ${r.qtd_itens} produtos${r.bairro ? `<br><span style="color:var(--muted);font-size:12px">${esc(r.bairro)}, ${esc(r.cidade || "")}</span>` : ""}</div><span class="t">${ago(days(r.enviada_em))}</span></div>`).join("")}</div>
@@ -179,12 +180,14 @@ function vSend() {
     <header class="top slim"><div class="page-title">Confira a nota</div><div class="page-sub">A IA leu ${n.itens.length} produto${n.itens.length > 1 ? "s" : ""}. Toque para corrigir o que estiver errado.</div></header>
     <div class="receipt">
       <div class="c"><input class="ed ed-c mk" data-ed="mercado.nome" value="${esc(n.mercado.nome)}" aria-label="Nome do mercado">
+        <input class="ed ed-c" data-ed="mercado.endereco" value="${esc(n.mercado.endereco || "")}" placeholder="Endereço (rua e número)">
         <div class="ed-row"><input class="ed ed-c" data-ed="mercado.bairro" value="${esc(n.mercado.bairro || "")}" placeholder="Bairro"><input class="ed ed-c" data-ed="mercado.cidade" value="${esc(n.mercado.cidade || "")}" placeholder="Cidade"></div>
         ${n.mercado.cnpj?.length === 14 ? `CNPJ ${n.mercado.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5")}` : `<span style="color:var(--red)">CNPJ não lido</span>`}</div>
       <hr><div class="c">${n.emitida_em ? "Nota de " + new Date(n.emitida_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "Data não lida (vamos usar hoje)"}</div><hr>
       ${n.itens.map((it, i) => `<div class="ritem"><div style="flex:1;min-width:0">
-          <div class="raw">${String(it.qtd).replace(".", ",")} ${esc(it.unidade)} x ${fmt(it.preco_unit)}</div>
-          <input class="ed match" data-ed="itens.${i}.descricao" value="${esc(nice(it.descricao).replace(/&amp;/g, "&"))}">
+          <div class="raw">${it.descricao_original ? esc(it.descricao_original) + " · " : ""}${String(it.qtd).replace(".", ",")} ${esc(it.unidade)} x ${fmt(it.preco_unit)}</div>
+          <input class="ed match" data-ed="itens.${i}.descricao" value="${nice(it.descricao)}">
+          <select class="ed-cat" data-ed="itens.${i}.categoria">${CATS.map((c) => `<option value="${c.id}" ${c.id === it.categoria ? "selected" : ""}>${c.em} ${c.nm}</option>`).join("")}</select>
           <span class="unit">Vai para a base: R$ <input class="ed ed-num" inputmode="decimal" data-ed="itens.${i}.preco_unit" value="${String(it.preco_unit.toFixed(2)).replace(".", ",")}">${unid(it.unidade)}</span></div>
         <div style="text-align:right"><div class="v">${fmt(it.total)}</div><button class="rm" data-act="rmItem" data-v="${i}" aria-label="Remover">✕</button></div></div>`).join("")}
       <hr><div class="ritem"><b>TOTAL</b><b>${fmt(tot)}</b></div>
@@ -283,7 +286,8 @@ function vMarkets() {
       <div class="av" style="background:${color(m.cnpj)}">${initials(m.nome)}</div>
       <div style="flex:1;min-width:0"><div class="nm">${esc(m.nome)}</div><div class="meta">${esc([m.bairro, m.cidade].filter(Boolean).join(", "))}</div>
         <div class="tags"><span class="tag">${m.produtos} produtos</span>${m.ultima_nota ? `<span class="tag ${days(m.ultima_nota) <= 3 ? "g" : ""}">última nota ${ago(days(m.ultima_nota))}</span>` : ""}</div>
-      </div><span class="chev">›</span></button>`).join("")}</div>` : emptyBase("Nenhum mercado ainda", "Os mercados aparecem aqui quando alguém envia a primeira nota de cada um.")}`;
+      </div><span class="chev">›</span></button>
+    <button class="edit-mk" data-act="editMk" data-v="${m.cnpj}">✏️ Editar dados do mercado</button>`).join("")}</div>` : emptyBase("Nenhum mercado ainda", "Os mercados aparecem aqui quando alguém envia a primeira nota de cada um.")}`;
 }
 
 /* ================= PRODUTO ================= */
@@ -311,7 +315,7 @@ async function openProd(k) {
   el.innerHTML = `
     <div class="over-top">
       <div style="display:flex;justify-content:space-between"><button class="icon-btn" data-act="closeProd">‹</button><span class="loc" style="background:rgba(255,255,255,.7);color:var(--ink)">${cat(b.categoria).em} ${cat(b.categoria).nm}</span></div>
-      <div class="prod-hero"><div class="em">${cat(b.categoria).em}</div><div><h1>${nice(b.descricao)}</h1><p>Preço por ${unid(b.unidade).slice(1)}</p></div></div>
+      <div class="prod-hero"><div class="em">${cat(b.categoria).em}</div><div><h1>${nice(b.descricao)}</h1><p>Preço por ${unid(b.unidade).slice(1)}${b.descricao_original && b.descricao_original !== b.descricao ? ` · na nota: ${esc(b.descricao_original)}` : ""}</p></div></div>
     </div>
     <div class="bestcard"><div class="lbl">Menor preço${S.cidade ? ` em ${esc(S.cidade)}` : ""}</div><div class="big">${fmt(b.preco_unit)}<span style="font-size:16px;opacity:.8">${unid(b.unidade)}</span></div><div class="at">no ${esc(b.mercado)}${b.bairro ? ` · ${esc(b.bairro)}` : ""}</div>
       <div class="row2"><div>Mais caro<b>${fmt(w.preco_unit)}</b></div><div>Diferença<b>${fmt(w.preco_unit - b.preco_unit)}</b></div><div>Nota de<b>${dlbl(b.emitida_em)}</b></div></div></div>
@@ -347,6 +351,17 @@ function renderSheet() {
       <div class="fgroup"><h4>Preço informado nos últimos</h4><div class="seg">${[[0, "Qualquer"], [3, "3 dias"], [7, "7 dias"], [30, "30 dias"]].map(([v, l]) => `<button class="${S.f.dias === v ? "on" : ""}" data-act="setDias" data-v="${v}">${l}</button>`).join("")}</div></div>
     </div>
     <div class="sheet-foot"><button class="btn btn-red btn-block" data-act="applyFilters">Ver resultados</button></div>`;
+  }
+  if (k === "editMk") {
+    const m = S.mercados.find((x) => x.cnpj === S.editCnpj) || {};
+    el.innerHTML = `<div class="grab"></div><div class="sheet-h"><h3>Editar mercado</h3></div>
+    <div class="sheet-body"><div class="form">
+      <label>Nome do mercado<input id="mkNome" value="${esc(m.nome || "")}" placeholder="Ex.: Assaí Atacadista"></label>
+      <label>Endereço<input id="mkEnd" value="${esc(m.endereco || "")}" placeholder="Rua e número"></label>
+      <div class="two"><label>Bairro<input id="mkBairro" value="${esc(m.bairro || "")}"></label><label>Cidade<input id="mkCidade" value="${esc(m.cidade || "")}"></label></div>
+      ${S.editErro ? `<div class="err" style="margin:4px 0 0">${esc(S.editErro)}</div>` : ""}
+    </div></div>
+    <div class="sheet-foot"><button class="btn btn-ghost" data-act="closeSheet">Cancelar</button><button class="btn btn-red" style="flex:1" data-act="saveMk">Salvar</button></div>`;
   }
   if (k === "sort") {
     el.innerHTML = `<div class="grab"></div><div class="sheet-h"><h3>Ordenar por</h3></div><div class="sheet-body">
@@ -501,6 +516,15 @@ document.addEventListener("click", async (e) => {
     case "pickCity": S.cidade = v || null; ls.set("cidade", S.cidade); S.f.bairros = []; S.f.mks = []; closeSheet(); render(); break;
     case "clearAll": resetF(); S.q = ""; if (S.sheet) renderSheet(); render(); break;
     case "openProd": openProd(v); break;
+    case "editMk": S.editCnpj = v; S.editErro = null; openSheet("editMk"); break;
+    case "saveMk": {
+      const val = (id) => document.getElementById(id)?.value.trim() || "";
+      try {
+        el.disabled = true; el.textContent = "Salvando…";
+        await post("editar", { acao: "mercado", cnpj: S.editCnpj, nome: val("mkNome"), endereco: val("mkEnd"), bairro: val("mkBairro"), cidade: val("mkCidade") });
+        closeSheet(); await loadMeta(); render(); toast("✓ Mercado atualizado");
+      } catch (err) { S.editErro = err.message; renderSheet(); }
+      break; }
     case "closeProd": closeProd(); break;
     case "inc": { const first = !S.list[v]; S.list[v] = (S.list[v] || 0) + 1; saveList(); if (S.prodOpen) openProd(S.prodOpen); if (S.tab === "list") render(); else render(); if (first) toast("✓ Adicionado à lista"); break; }
     case "dec": S.list[v]--; if (S.list[v] <= 0) delete S.list[v]; saveList(); if (S.prodOpen) openProd(S.prodOpen); render(); break;
