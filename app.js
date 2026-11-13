@@ -175,12 +175,18 @@ function vSend() {
     <header class="top slim"><div class="page-title">Ler QR Code</div><div class="page-sub">Aponte para o QR Code no rodapé da nota</div></header>
     <div style="padding:16px"><div id="reader"></div>
     <button class="btn btn-ghost btn-block" style="margin-top:12px" data-act="scanStop">Cancelar</button></div>`;
-  if (E.step === "revisao") { const n = E.nota; const tot = n.itens.reduce((s, i) => s + i.total, 0); return `
-    <header class="top slim"><div class="page-title">Confira a nota</div><div class="page-sub">Reconhecemos ${n.itens.length} produto${n.itens.length > 1 ? "s" : ""}. Está tudo certo?</div></header>
+  if (E.step === "revisao") { const n = E.nota; const tot = n.itens.reduce((s, i) => s + (+i.total || 0), 0); return `
+    <header class="top slim"><div class="page-title">Confira a nota</div><div class="page-sub">A IA leu ${n.itens.length} produto${n.itens.length > 1 ? "s" : ""}. Toque para corrigir o que estiver errado.</div></header>
     <div class="receipt">
-      <div class="c"><div class="mk">${esc(n.mercado.nome)}</div>${esc([n.mercado.bairro, n.mercado.cidade].filter(Boolean).join(", "))}<br>CNPJ ${n.mercado.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5")}</div>
-      <hr><div class="c">NFC-e · ${new Date(n.emitida_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</div><hr>
-      ${n.itens.map((it) => `<div class="ritem"><div><div class="raw">${String(it.qtd).replace(".", ",")} ${esc(it.unidade)} x ${fmt(it.preco_unit)}</div><div class="match">${cat(it.categoria).em} ${nice(it.descricao)}</div><span class="unit">Vai para a base: ${fmt(it.preco_unit)}${unid(it.unidade)}</span></div><div class="v">${fmt(it.total)}</div></div>`).join("")}
+      <div class="c"><input class="ed ed-c mk" data-ed="mercado.nome" value="${esc(n.mercado.nome)}" aria-label="Nome do mercado">
+        <div class="ed-row"><input class="ed ed-c" data-ed="mercado.bairro" value="${esc(n.mercado.bairro || "")}" placeholder="Bairro"><input class="ed ed-c" data-ed="mercado.cidade" value="${esc(n.mercado.cidade || "")}" placeholder="Cidade"></div>
+        ${n.mercado.cnpj?.length === 14 ? `CNPJ ${n.mercado.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5")}` : `<span style="color:var(--red)">CNPJ não lido</span>`}</div>
+      <hr><div class="c">${n.emitida_em ? "Nota de " + new Date(n.emitida_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "Data não lida (vamos usar hoje)"}</div><hr>
+      ${n.itens.map((it, i) => `<div class="ritem"><div style="flex:1;min-width:0">
+          <div class="raw">${String(it.qtd).replace(".", ",")} ${esc(it.unidade)} x ${fmt(it.preco_unit)}</div>
+          <input class="ed match" data-ed="itens.${i}.descricao" value="${esc(nice(it.descricao).replace(/&amp;/g, "&"))}">
+          <span class="unit">Vai para a base: R$ <input class="ed ed-num" inputmode="decimal" data-ed="itens.${i}.preco_unit" value="${String(it.preco_unit.toFixed(2)).replace(".", ",")}">${unid(it.unidade)}</span></div>
+        <div style="text-align:right"><div class="v">${fmt(it.total)}</div><button class="rm" data-act="rmItem" data-v="${i}" aria-label="Remover">✕</button></div></div>`).join("")}
       <hr><div class="ritem"><b>TOTAL</b><b>${fmt(tot)}</b></div>
       <div class="privacy" style="background:var(--yellow-soft);color:#6B4D00">🏷️ Só o preço unitário entra na comparação. Quantidade e total da sua compra ficam de fora.</div>
       <div class="privacy">🔒 Seus dados pessoais (como CPF) não são salvos.</div>
@@ -199,24 +205,36 @@ function vSend() {
       <button class="btn btn-ghost btn-block" data-act="sendReset">Enviar outra nota</button>
     </div>`;
   // início
+  const fotos = E.fotos || [];
+  if (E.loading && E.modo !== "texto") return `
+    <header class="top slim"><div class="page-title">Lendo sua nota…</div><div class="page-sub">A IA está identificando o mercado e os produtos</div></header>
+    <div class="steps">${["Foto recebida", "Encontrando o mercado", "Lendo os produtos e preços", "Removendo dados pessoais"].map((t, i) => `<div class="step ${i === 0 ? "done" : i === 1 ? "doing" : ""}" data-i="${i}"><span class="dot">✓</span>${t}</div>`).join("")}</div>
+    <p class="proto">Pode levar até 20 segundos.</p>`;
   return `
-    <header class="top slim"><div class="page-title">Enviar nota fiscal</div><div class="page-sub">Leva menos de 1 minuto. Por enquanto, só notas de SP.</div></header>
+    <header class="top slim"><div class="page-title">Enviar nota fiscal</div><div class="page-sub">Tire uma foto do cupom e a gente faz o resto</div></header>
     ${err}
-    <section class="sec"><div class="howto">
-      <div class="st"><b class="n">1</b><div style="flex:1"><h4>Abra a nota na Sefaz</h4><p>Leia o QR Code do rodapé da nota. A página oficial da nota abre no navegador.</p>
-        <div class="act">${E.url ? `<a class="btn btn-red btn-sm" href="${esc(E.url)}" target="_blank" rel="noopener">Abrir nota na Sefaz ↗</a><button class="btn btn-ghost btn-sm" data-act="scanStart">Ler outro</button>`
-          : `<button class="btn btn-red btn-sm" data-act="scanStart">${I.scan.replace(/26/g, "18")} Ler QR Code</button>`}</div>
-        <p style="margin-top:8px;font-size:12px">Também dá pra usar a câmera normal do celular: ela abre o link da nota.</p></div></div>
-      <div class="st"><b class="n">2</b><div><h4>Copie a página inteira</h4><p>Na página da nota, toque e segure em qualquer texto, escolha <b>Selecionar tudo</b> e depois <b>Copiar</b>.</p></div></div>
-      <div class="st"><b class="n">3</b><div style="flex:1"><h4>Volte aqui e cole</h4>
-        <div class="act" style="margin-bottom:8px"><button class="btn btn-yellow btn-sm" data-act="pasteClip">📋 Colar texto da nota</button></div>
-        <textarea class="paste" id="paste" placeholder="Ou toque aqui e cole o texto">${esc(E.texto)}</textarea>
-      </div></div>
-    </div></section>
+    <section class="sec">
+      ${fotos.length ? `<div class="thumbs">${fotos.map((f, i) => `<div class="th"><img src="${f}" alt="Parte ${i + 1} da nota"><button data-act="rmFoto" data-v="${i}" aria-label="Remover foto">✕</button><span>${i + 1}</span></div>`).join("")}
+          ${fotos.length < 4 ? `<label class="th add"><input type="file" accept="image/*" capture="environment" id="fotoIn" hidden><b>+</b>Outra parte</label>` : ""}</div>
+        <p class="proto" style="margin:8px 0 0">Nota comprida? Tire mais de uma foto, de cima para baixo.</p>
+        <button class="btn btn-red btn-block" style="margin-top:14px" data-act="lerFoto">Ler a nota</button>`
+      : `<label class="photo-cta"><input type="file" accept="image/*" capture="environment" id="fotoIn" hidden>
+          <span class="ic">📸</span><b>Tirar foto da nota</b><small>ou escolher da galeria</small></label>
+        <div class="tips"><div>💡 Boa luz</div><div>📄 Nota esticada</div><div>📱 Celular reto</div></div>`}
+    </section>
     ${!convite ? `<section class="sec"><div class="howto" style="padding:14px"><h4 style="font-size:14px">Código de convite</h4><p style="font-size:12.5px;color:var(--muted)">Abra o app pelo link que você recebeu, ou digite o código aqui.</p>
       <div class="code-in"><input id="convite" placeholder="ex.: feira-abc123" autocapitalize="off"><button class="btn btn-ghost btn-sm" data-act="saveCode">Salvar</button></div></div></section>` : ""}
-    <div style="padding:16px 16px 0"><button class="btn btn-red btn-block" data-act="sendPreview" ${E.loading ? "disabled" : ""}>${E.loading ? "Lendo a nota…" : "Ler a nota"}</button></div>
-    <p class="proto">🔒 O app guarda só o mercado, os produtos, o preço unitário e a data. Nada de CPF ou dados pessoais.</p>`;
+    <section class="sec"><details class="alt" ${E.modo === "texto" ? "open" : ""}><summary>Prefere colar o texto da nota da Sefaz?</summary>
+      <div class="howto" style="margin-top:10px">
+        <div class="st"><b class="n">1</b><div style="flex:1"><h4>Abra a nota</h4><p>Leia o QR Code com a câmera do celular. A página da nota abre no navegador.</p>
+          <div class="act">${E.url ? `<a class="btn btn-red btn-sm" href="${esc(E.url)}" target="_blank" rel="noopener">Abrir nota na Sefaz ↗</a>` : `<button class="btn btn-ghost btn-sm" data-act="scanStart">Ler QR Code aqui</button>`}</div></div></div>
+        <div class="st"><b class="n">2</b><div><h4>Copie a página inteira</h4><p>Toque e segure no texto, <b>Selecionar tudo</b> e <b>Copiar</b>.</p></div></div>
+        <div class="st"><b class="n">3</b><div style="flex:1"><h4>Cole aqui</h4>
+          <div class="act" style="margin-bottom:8px"><button class="btn btn-yellow btn-sm" data-act="pasteClip">📋 Colar</button></div>
+          <textarea class="paste" id="paste" placeholder="Ou toque aqui e cole o texto">${esc(E.texto || "")}</textarea>
+          <button class="btn btn-red btn-block btn-sm" style="margin-top:10px" data-act="sendPreview" ${E.loading ? "disabled" : ""}>${E.loading ? "Lendo…" : "Ler o texto"}</button></div></div>
+      </div></details></section>
+    <p class="proto">🔒 O app guarda só o mercado, os produtos, o preço unitário e a data. Nada de CPF ou dados pessoais. A foto não fica salva.</p>`;
 }
 
 async function vListHtml() {
@@ -366,33 +384,79 @@ async function scanStop(silent) {
   try { if (scanner) { await scanner.stop(); scanner.clear(); } } catch {}
   scanner = null; if (!silent) { S.envio.step = "inicio"; render(); } else S.envio.step = "inicio";
 }
-async function chamar(salvar) {
+async function post(fn, body) {
   const convite = ls.get("convite", "");
-  if (!convite) { S.envio.erro = "Falta o código de convite. Abra o app pelo link que você recebeu ou digite o código abaixo."; render(); return null; }
-  const r = await fetch(`${SUPABASE_URL}/functions/v1/enviar-nota`, {
-    method: "POST", headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY },
-    body: JSON.stringify({ texto: S.envio.texto, salvar, convite }),
-  });
+  if (!convite) throw new Error("Falta o código de convite. Abra o app pelo link que você recebeu ou digite o código abaixo.");
+  let r;
+  try {
+    r = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
+      method: "POST", headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY },
+      body: JSON.stringify({ ...body, convite }),
+    });
+  } catch { throw new Error("Sem conexão. Confira sua internet e tente de novo."); }
   const j = await r.json().catch(() => ({ erro: "Resposta inválida do servidor." }));
   if (!r.ok) throw new Error(j.erro || "Erro ao enviar.");
   return j;
 }
+function redimensionar(file, max = 1600) {
+  return new Promise((res, rej) => {
+    const img = new Image(); const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      res(c.toDataURL("image/jpeg", 0.82));
+    };
+    img.onerror = () => rej(new Error("Não consegui abrir essa imagem."));
+    img.src = url;
+  });
+}
+let stepTimer;
+function animarPassos() {
+  clearInterval(stepTimer); let i = 1;
+  stepTimer = setInterval(() => {
+    const st = document.querySelectorAll(".steps .step"); if (!st.length) return clearInterval(stepTimer);
+    i = Math.min(i + 1, st.length - 1);
+    st.forEach((e, j) => { e.classList.toggle("done", j < i); e.classList.toggle("doing", j === i); });
+  }, 3500);
+}
+async function lerFoto() {
+  const E = S.envio; if (!E.fotos?.length) return;
+  E.erro = null; E.loading = true; E.modo = "foto"; render(); window.scrollTo(0, 0); animarPassos();
+  try { const n = await post("ler-foto", { imagens: E.fotos }); E.nota = n; E.origem = "foto"; E.step = "revisao"; }
+  catch (e) { E.erro = e.message; }
+  clearInterval(stepTimer); E.loading = false; render(); window.scrollTo(0, 0);
+}
 async function sendPreview() {
-  const ta = document.getElementById("paste"); if (ta) S.envio.texto = ta.value;
-  if (S.envio.texto.trim().length < 40) { S.envio.erro = "Cole o texto da página da nota antes de continuar."; render(); return; }
-  S.envio.erro = null; S.envio.loading = true; render();
-  try { const n = await chamar(false); if (n) { S.envio.nota = n; S.envio.step = "revisao"; } }
-  catch (e) { S.envio.erro = e.message; }
-  S.envio.loading = false; render(); window.scrollTo(0, 0);
+  const E = S.envio; const ta = document.getElementById("paste"); if (ta) E.texto = ta.value;
+  E.modo = "texto";
+  if ((E.texto || "").trim().length < 40) { E.erro = "Cole o texto da página da nota antes de continuar."; render(); return; }
+  E.erro = null; E.loading = true; render();
+  try { const n = await post("enviar-nota", { texto: E.texto, salvar: false }); E.nota = n; E.origem = "texto"; E.step = "revisao"; }
+  catch (e) { E.erro = e.message; }
+  E.loading = false; render(); window.scrollTo(0, 0);
 }
 async function sendSave() {
-  S.envio.loading = true; S.envio.erro = null; render();
+  const E = S.envio; E.loading = true; E.erro = null; render();
   try {
-    const j = await chamar(true);
-    if (j) { S.envio.salvo = j; S.envio.step = "feito"; ls.set("enviadas", ls.get("enviadas", 0) + 1); await loadMeta(); }
-  } catch (e) { S.envio.erro = e.message; }
-  S.envio.loading = false; render(); window.scrollTo(0, 0);
+    const j = E.origem === "foto" ? await post("ler-foto", { salvar: true, nota: E.nota }) : await post("enviar-nota", { texto: E.texto, salvar: true });
+    E.salvo = j; E.step = "feito"; E.fotos = []; ls.set("enviadas", ls.get("enviadas", 0) + 1); await loadMeta();
+  } catch (e) { E.erro = e.message; }
+  E.loading = false; render(); window.scrollTo(0, 0);
 }
+document.addEventListener("change", async (e) => {
+  if (e.target.id !== "fotoIn" || !e.target.files?.length) return;
+  try { const d = await redimensionar(e.target.files[0]); S.envio.fotos = [...(S.envio.fotos || []), d]; S.envio.erro = null; }
+  catch (err) { S.envio.erro = err.message; }
+  render();
+});
+document.addEventListener("input", (e) => {
+  const p = e.target.dataset?.ed; if (!p || !S.envio.nota) return;
+  const ks = p.split("."); let o = S.envio.nota; for (const k of ks.slice(0, -1)) o = o[k];
+  const last = ks.at(-1);
+  if (last === "preco_unit") { const v = parseFloat(e.target.value.replace(/\./g, "").replace(",", ".")); if (v > 0) { o.preco_unit = v; o.total = Math.round(v * o.qtd * 100) / 100; } }
+  else o[last] = e.target.value;
+});
 
 /* ================= RENDER ================= */
 async function render() {
@@ -417,7 +481,7 @@ document.addEventListener("click", async (e) => {
   const el = e.target.closest("[data-act]"); if (!el) return;
   const a = el.dataset.act, v = el.dataset.v, k = el.dataset.k;
   switch (a) {
-    case "tab": if (v === "send" && S.envio.step === "feito") S.envio = { step: "inicio", texto: "" }; go(v); break;
+    case "tab": if (v === "send" && S.envio.step === "feito") S.envio = { step: "inicio", texto: "", fotos: [] }; go(v); break;
     case "goSearch": go("search"); setTimeout(() => document.getElementById("q")?.focus(), 60); break;
     case "goCat": resetF(); S.f.cats = [v]; S.q = ""; go("search"); break;
     case "goMarket": resetF(); S.f.mks = [v]; S.q = ""; if (S.envio.step === "feito") S.envio = { step: "inicio", texto: "" }; go("search"); break;
@@ -448,7 +512,10 @@ document.addEventListener("click", async (e) => {
     case "saveCode": { const c = document.getElementById("convite")?.value.trim(); if (c) { ls.set("convite", c); S.envio.erro = null; toast("✓ Código salvo"); render(); } break; }
     case "sendPreview": sendPreview(); break;
     case "sendSave": sendSave(); break;
-    case "sendReset": S.envio = { step: "inicio", texto: "", url: null }; render(); break;
+    case "sendReset": S.envio = { step: "inicio", texto: "", url: null, fotos: S.envio.step === "revisao" ? S.envio.fotos : [] }; render(); break;
+    case "lerFoto": lerFoto(); break;
+    case "rmFoto": S.envio.fotos.splice(+v, 1); render(); break;
+    case "rmItem": S.envio.nota.itens.splice(+v, 1); if (!S.envio.nota.itens.length) S.envio = { step: "inicio", fotos: S.envio.fotos }; render(); break;
   }
 });
 
