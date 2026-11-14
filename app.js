@@ -438,8 +438,15 @@ function animarPassos() {
 async function lerFoto() {
   const E = S.envio; if (!E.fotos?.length) return;
   E.erro = null; E.loading = true; E.modo = "foto"; render(); window.scrollTo(0, 0); animarPassos();
-  try { const n = await post("ler-foto", { imagens: E.fotos }); E.nota = n; E.origem = "foto"; E.step = "revisao"; }
-  catch (e) { E.erro = e.message; }
+  for (let tent = 1; tent <= 3; tent++) {
+    try { const n = await post("ler-foto", { imagens: E.fotos }); E.nota = n; E.origem = "foto"; E.step = "revisao"; E.erro = null; break; }
+    catch (e) {
+      E.erro = e.message;
+      if (!/ocupado/i.test(e.message) || tent === 3) { if (tent === 3) E.erro = "O serviço de leitura está muito ocupado agora. Suas fotos continuam aqui: tente de novo em alguns minutos."; break; }
+      const sub = document.querySelector(".page-sub"); if (sub) sub.textContent = "Serviço ocupado, tentando de novo…";
+      await new Promise((r) => setTimeout(r, 4000 * tent));
+    }
+  }
   clearInterval(stepTimer); E.loading = false; render(); window.scrollTo(0, 0);
 }
 async function sendPreview() {
