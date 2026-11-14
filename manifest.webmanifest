@@ -2,7 +2,7 @@
   "name": "Comparaí · versão de teste",
   "short_name": "Comparaí",
   "description": "Compare preços de supermercado com notas fiscais da comunidade.",
-  "start_url": "./",
+  "start_url": "./?c=feira-7bff2f",
   "display": "standalone",
   "background_color": "#FFFBF3",
   "theme_color": "#E52421",

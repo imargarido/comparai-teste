@@ -225,7 +225,7 @@ function vSend() {
           <span class="ic">📸</span><b>Tirar foto da nota</b><small>ou escolher da galeria</small></label>
         <div class="tips"><div>💡 Boa luz</div><div>📄 Nota esticada</div><div>📱 Celular reto</div></div>`}
     </section>
-    ${!convite ? `<section class="sec"><div class="howto" style="padding:14px"><h4 style="font-size:14px">Código de convite</h4><p style="font-size:12.5px;color:var(--muted)">Abra o app pelo link que você recebeu, ou digite o código aqui.</p>
+    ${!convite ? `<section class="sec"><div class="howto" style="padding:14px"><h4 style="font-size:14px">Falta o código de convite</h4><p style="font-size:12.5px;color:var(--muted)">É só uma vez. Digite o código que veio junto com o link do app (ex.: feira-abc123).</p>
       <div class="code-in"><input id="convite" placeholder="ex.: feira-abc123" autocapitalize="off"><button class="btn btn-ghost btn-sm" data-act="saveCode">Salvar</button></div></div></section>` : ""}
     <section class="sec"><details class="alt" ${E.modo === "texto" ? "open" : ""}><summary>Prefere colar o texto da nota da Sefaz?</summary>
       <div class="howto" style="margin-top:10px">
