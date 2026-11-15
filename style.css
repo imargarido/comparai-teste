@@ -330,3 +330,6 @@ details.alt summary::-webkit-details-marker{display:none}
 .form input{height:46px;border-radius:13px;border:1.5px solid var(--line);background:#fff;padding:0 12px;font:inherit;font-size:15px;color:var(--ink);outline:0}
 .form input:focus{border-color:var(--red)}
 .form .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.gal-cta{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;height:54px;border-radius:16px;background:var(--card);border:1.5px solid var(--line);font-weight:800;font-size:15.5px;cursor:pointer;box-shadow:var(--shadow)}
+.gal-cta:active{transform:translateY(2px)}
+.th.add b{font-size:26px;margin-bottom:4px}

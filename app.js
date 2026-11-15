@@ -218,11 +218,13 @@ function vSend() {
     ${err}
     <section class="sec">
       ${fotos.length ? `<div class="thumbs">${fotos.map((f, i) => `<div class="th"><img src="${f}" alt="Parte ${i + 1} da nota"><button data-act="rmFoto" data-v="${i}" aria-label="Remover foto">✕</button><span>${i + 1}</span></div>`).join("")}
-          ${fotos.length < 4 ? `<label class="th add"><input type="file" accept="image/*" capture="environment" id="fotoIn" hidden><b>+</b>Outra parte</label>` : ""}</div>
-        <p class="proto" style="margin:8px 0 0">Nota comprida? Tire mais de uma foto, de cima para baixo.</p>
+          ${fotos.length < 4 ? `<label class="th add"><input type="file" accept="image/*" capture="environment" class="fotoIn" hidden><b>📸</b>Tirar outra</label>
+            <label class="th add"><input type="file" accept="image/*" multiple class="fotoIn" hidden><b>🖼️</b>Da galeria</label>` : ""}</div>
+        <p class="proto" style="margin:8px 0 0">Nota comprida? Use mais de uma foto, de cima para baixo (até 4).</p>
         <button class="btn btn-red btn-block" style="margin-top:14px" data-act="lerFoto">Ler a nota</button>`
-      : `<label class="photo-cta"><input type="file" accept="image/*" capture="environment" id="fotoIn" hidden>
-          <span class="ic">📸</span><b>Tirar foto da nota</b><small>ou escolher da galeria</small></label>
+      : `<label class="photo-cta"><input type="file" accept="image/*" capture="environment" class="fotoIn" hidden>
+          <span class="ic">📸</span><b>Tirar foto da nota</b><small>abre a câmera</small></label>
+        <label class="gal-cta"><input type="file" accept="image/*" multiple class="fotoIn" hidden>🖼️ Escolher da galeria</label>
         <div class="tips"><div>💡 Boa luz</div><div>📄 Nota esticada</div><div>📱 Celular reto</div></div>`}
     </section>
     ${!convite ? `<section class="sec"><div class="howto" style="padding:14px"><h4 style="font-size:14px">Falta o código de convite</h4><p style="font-size:12.5px;color:var(--muted)">É só uma vez. Digite o código que veio junto com o link do app (ex.: feira-abc123).</p>
@@ -467,8 +469,9 @@ async function sendSave() {
   E.loading = false; render(); window.scrollTo(0, 0);
 }
 document.addEventListener("change", async (e) => {
-  if (e.target.id !== "fotoIn" || !e.target.files?.length) return;
-  try { const d = await redimensionar(e.target.files[0]); S.envio.fotos = [...(S.envio.fotos || []), d]; S.envio.erro = null; }
+  if (!e.target.classList?.contains("fotoIn") || !e.target.files?.length) return;
+  const arquivos = [...e.target.files].slice(0, 4 - (S.envio.fotos || []).length);
+  try { for (const f of arquivos) { const d = await redimensionar(f); S.envio.fotos = [...(S.envio.fotos || []), d]; } S.envio.erro = null; }
   catch (err) { S.envio.erro = err.message; }
   render();
 });
