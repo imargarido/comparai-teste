@@ -343,3 +343,11 @@ details.alt summary::-webkit-details-marker{display:none}
 .uni-par{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .uni-par div{flex:1;background:var(--card);border-radius:12px;padding:10px;font-weight:800;font-size:13px;box-shadow:var(--shadow);text-align:center}
 .uni-par span{font-family:var(--head);font-weight:800;color:var(--red);font-size:20px}
+.sug{background:var(--card);border-radius:var(--r-md);box-shadow:var(--shadow);padding:12px 14px;border-left:4px solid var(--yellow)}
+.sug-par{display:flex;align-items:center;gap:8px;font-weight:800;font-size:13px}
+.sug-par span{flex:1}
+.sug-par i{font-style:normal;color:var(--red);font-family:var(--head);font-size:20px}
+.sug-nome{font-size:12.5px;color:var(--muted);margin-top:6px}
+.sug-nome b{color:var(--ink)}
+.sug-act{display:flex;gap:8px;margin-top:10px}
+.sug-act .btn{flex:1}

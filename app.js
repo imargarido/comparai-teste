@@ -54,12 +54,14 @@ const saveList = () => ls.set("lista", S.list);
 
 /* ================= DADOS ================= */
 async function loadMeta() {
-  const [m, st, rc, rs] = await Promise.all([
+  const [m, st, rc, rs, sg] = await Promise.all([
     sb.from("mercados").select("cnpj,nome,endereco,bairro,cidade").order("nome"),
     sb.rpc("estatisticas"),
     sb.from("notas_recentes").select("*"),
     sb.from("resumo_mercados").select("*"),
+    sb.from("sugestoes").select("id,a,b,nome").eq("status", "pendente").order("id").limit(30),
   ]);
+  S.sugestoes = sg.data || [];
   S.mercados = m.data || []; S.stats = st.data || { notas: 0, produtos: 0, mercados: 0 };
   S.recentes = rc.data || []; S.resumo = rs.data || [];
 }
@@ -124,6 +126,11 @@ function vHome() {
   ${S.recentes.length ? `<section class="sec"><div class="sec-h"><h2>Notas que acabaram de chegar</h2></div>
     <div class="feed">${S.recentes.slice(0, 6).map((r) => `<div class="feed-row"><span class="pulse"></span><div><b>${esc(r.mercado)}</b> · ${r.qtd_itens} produtos${r.bairro ? `<br><span style="color:var(--muted);font-size:12px">${esc(r.bairro)}, ${esc(r.cidade || "")}</span>` : ""}</div><span class="t">${ago(days(r.enviada_em))}</span></div>`).join("")}</div>
   </section>` : `<section class="sec"><div class="howto" style="padding:18px;text-align:center"><div style="font-size:40px">🌱</div><h3 style="font-family:var(--head);margin:6px 0 4px">A base está começando</h3><p style="color:var(--muted);font-size:13.5px">Você está entre os primeiros testadores. Envie as notas das suas compras e veja os preços aparecerem aqui.</p></div></section>`}
+  ${S.sugestoes?.length ? `<section class="sec"><div class="sec-h"><h2>Ajude a organizar 🔎</h2><span style="font-size:12px;color:var(--muted)">${S.sugestoes.length} sugest${S.sugestoes.length > 1 ? "ões" : "ão"}</span></div>
+    <p class="uni-sub" style="margin-top:-6px">A IA achou produtos que parecem ser o mesmo com nomes diferentes.</p>
+    <div class="list" style="padding:0">${S.sugestoes.slice(0, S.verTodasSug ? 30 : 3).map(sugCard).join("")}</div>
+    ${S.sugestoes.length > 3 && !S.verTodasSug ? `<button class="link" style="display:block;margin:10px auto 0" data-act="verSug">Ver todas</button>` : ""}
+  </section>` : ""}
   ${nmerc.length ? `<section class="sec"><div class="sec-h"><h2>Mercados com mais preços</h2><button class="link" data-act="tab" data-v="markets">Ver todos</button></div>
     <div class="hscroll">${nmerc.map((m) => `<button class="mk-mini" data-act="goMarket" data-v="${m.cnpj}">
       <div class="av" style="background:${color(m.cnpj)}">${initials(m.nome)}</div><div class="nm">${esc(m.nome)}</div>
@@ -329,6 +336,8 @@ async function openProd(k) {
           <div class="pr"><b>${fmt(x.preco_unit)}</b><small>${i === 0 ? "mais barato" : "+ " + fmt(x.preco_unit - b.preco_unit)}</small></div></div>`).join("")}
       </div>
       <p class="proto">Só aparecem mercados onde o produto veio com esse mesmo nome na nota.</p>
+      ${(S.sugestoes || []).filter((s) => s.a === k || s.b === k).map((s) => `<div class="sug" style="margin-top:14px"><div class="sug-nome">🔎 A IA acha que este pode ser o mesmo produto que <b>${nice(s.a === k ? s.b : s.a)}</b></div>
+        <div class="sug-act"><button class="btn btn-ghost btn-sm" data-act="sugNao" data-v="${s.id}">Não são iguais</button><button class="btn btn-red btn-sm" data-act="sugSim" data-v="${s.id}">Unificar</button></div></div>`).join("")}
       <button class="uni-btn" data-act="uniOpen" data-v="${esc(k)}">🔗 Viu este produto com outro nome? <b>Unificar</b></button>
     </section>
     <div class="addbar">${qn ? `<div class="stepper"><button data-act="dec" data-v="${esc(k)}">−</button><span>${qn}</span><button data-act="inc" data-v="${esc(k)}">+</button></div><button class="btn btn-yellow" style="flex:1" data-act="tab" data-v="list">Ver minha lista</button>`
@@ -337,6 +346,11 @@ async function openProd(k) {
 function closeProd() { document.getElementById("over").classList.remove("show"); S.prodOpen = null; }
 
 /* ================= UNIFICAR ================= */
+const sugCard = (s) => `<div class="sug fade">
+  <div class="sug-par"><span>${nice(s.a)}</span><i>≈</i><span>${nice(s.b)}</span></div>
+  ${s.nome ? `<div class="sug-nome">Nome sugerido: <b>${nice(s.nome)}</b></div>` : ""}
+  <div class="sug-act"><button class="btn btn-ghost btn-sm" data-act="sugNao" data-v="${s.id}">Não são iguais</button><button class="btn btn-red btn-sm" data-act="sugSim" data-v="${s.id}">São o mesmo</button></div>
+</div>`;
 let uniTimer;
 async function renderUniRes() {
   const box = document.getElementById("uniRes"); if (!box) return;
@@ -360,7 +374,8 @@ async function uniConfirmar() {
   if (error) { U.erro = /convite/i.test(error.message) ? "Falta o código de convite. Abra o app pelo link que você recebeu." : "Não consegui unificar agora. Tente de novo."; renderSheet(); return; }
   const final = data.nome;
   [U.de, U.alvo.k].forEach((k) => { if (S.list[k]) { S.list[final] = (S.list[final] || 0) + S.list[k]; if (k !== final) delete S.list[k]; } });
-  saveList(); closeSheet(); toast("✓ Produtos unificados"); openProd(final); if (S.tab === "search") renderResults();
+  S.sugestoes = (S.sugestoes || []).filter((s) => ![s.a, s.b].some((x) => x === U.de || x === U.alvo.k));
+  saveList(); closeSheet(); toast("✓ Produtos unificados"); if (S.tab === "home") render(); openProd(final); if (S.tab === "search") renderResults();
 }
 document.addEventListener("input", (e) => {
   if (e.target.id !== "uniQ") return;
@@ -523,6 +538,7 @@ async function sendSave() {
   try {
     const j = E.origem === "foto" ? await post("ler-foto", { salvar: true, nota: E.nota }) : await post("enviar-nota", { texto: E.texto, salvar: true });
     E.salvo = j; E.step = "feito"; E.fotos = []; ls.set("enviadas", ls.get("enviadas", 0) + 1); await loadMeta();
+    post("editar", { acao: "sugestoes" }).then(() => loadMeta()).catch(() => {});
   } catch (e) { E.erro = e.message; }
   E.loading = false; render(); window.scrollTo(0, 0);
 }
@@ -589,6 +605,13 @@ document.addEventListener("click", async (e) => {
     case "uniNome": S.uni.nome = [S.uni.alvo.nome, S.uni.deNome][+v]; const o = document.getElementById("uniOutro"); if (o) o.value = ""; renderSheet(); break;
     case "uniVoltar": S.uni.alvo = null; renderSheet(); break;
     case "uniOk": uniConfirmar(); break;
+    case "verSug": S.verTodasSug = true; render(); break;
+    case "sugSim": { const s = S.sugestoes.find((x) => x.id === +v); if (!s) break;
+      S.uni = { de: s.a, deNome: s.a, q: "", alvo: { k: s.b, nome: s.b }, nome: s.nome || s.b, sugId: s.id }; openSheet("uni"); break; }
+    case "sugNao": {
+      const { error } = await sb.rpc("ignorar_sugestao", { p_convite: ls.get("convite", ""), p_id: +v });
+      if (error) { toast("Falta o código de convite"); break; }
+      S.sugestoes = S.sugestoes.filter((x) => x.id !== +v); toast("Ok, não vamos sugerir de novo"); render(); if (S.prodOpen) openProd(S.prodOpen); break; }
     case "editMk": S.editCnpj = v; S.editErro = null; openSheet("editMk"); break;
     case "saveMk": {
       const val = (id) => document.getElementById(id)?.value.trim() || "";
