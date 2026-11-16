@@ -1,4 +1,6 @@
-# Comparaí · versão de teste
+# comparAI · versão de teste
+
+*Preço de supermercado, comparado de verdade.*
 
 Comparador de preços de supermercado alimentado por notas fiscais (NFC-e) enviadas pelos usuários.
 
