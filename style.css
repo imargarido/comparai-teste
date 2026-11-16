@@ -333,3 +333,13 @@ details.alt summary::-webkit-details-marker{display:none}
 .gal-cta{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;height:54px;border-radius:16px;background:var(--card);border:1.5px solid var(--line);font-weight:800;font-size:15.5px;cursor:pointer;box-shadow:var(--shadow)}
 .gal-cta:active{transform:translateY(2px)}
 .th.add b{font-size:26px;margin-bottom:4px}
+.uni-btn{display:block;width:100%;margin-top:14px;padding:14px;border-radius:15px;border:1.5px dashed #D8CABB;background:var(--card);font-size:13.5px;font-weight:700;color:var(--muted);text-align:center}
+.uni-btn b{color:var(--red)}
+.uni-sub{font-size:13px;color:var(--muted);margin-bottom:12px}
+.uni-atual{background:var(--yellow-soft);border-radius:14px;padding:10px 12px;margin-bottom:12px}
+.uni-atual small{display:block;font-size:11px;font-weight:800;color:#6B4D00;text-transform:uppercase;letter-spacing:.5px}
+.uni-atual b{font-size:14.5px}
+.uni-q{box-shadow:none;border:1.5px solid var(--line);margin:0 0 6px}
+.uni-par{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.uni-par div{flex:1;background:var(--card);border-radius:12px;padding:10px;font-weight:800;font-size:13px;box-shadow:var(--shadow);text-align:center}
+.uni-par span{font-family:var(--head);font-weight:800;color:var(--red);font-size:20px}

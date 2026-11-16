@@ -329,11 +329,43 @@ async function openProd(k) {
           <div class="pr"><b>${fmt(x.preco_unit)}</b><small>${i === 0 ? "mais barato" : "+ " + fmt(x.preco_unit - b.preco_unit)}</small></div></div>`).join("")}
       </div>
       <p class="proto">Só aparecem mercados onde o produto veio com esse mesmo nome na nota.</p>
+      <button class="uni-btn" data-act="uniOpen" data-v="${esc(k)}">🔗 Viu este produto com outro nome? <b>Unificar</b></button>
     </section>
     <div class="addbar">${qn ? `<div class="stepper"><button data-act="dec" data-v="${esc(k)}">−</button><span>${qn}</span><button data-act="inc" data-v="${esc(k)}">+</button></div><button class="btn btn-yellow" style="flex:1" data-act="tab" data-v="list">Ver minha lista</button>`
       : `<button class="btn btn-red btn-block" data-act="inc" data-v="${esc(k)}">+ Adicionar à lista</button>`}</div>`;
 }
 function closeProd() { document.getElementById("over").classList.remove("show"); S.prodOpen = null; }
+
+/* ================= UNIFICAR ================= */
+let uniTimer;
+async function renderUniRes() {
+  const box = document.getElementById("uniRes"); if (!box) return;
+  const U = S.uni; const q = U.q.trim();
+  if (q.length < 2) { box.innerHTML = `<p class="proto" style="margin:14px 0">Digite pelo menos 2 letras.</p>`; return; }
+  box.innerHTML = skel(2);
+  const { data } = await sb.rpc("buscar_precos", { q, p_cidade: null, p_bairros: null, p_mercados: null, p_categorias: null, p_dias: null });
+  if (S.uni !== U || U.q.trim() !== q) return;
+  const g = new Map();
+  (data || []).forEach((r) => { if (r.descricao_norm === U.de) return; const x = g.get(r.descricao_norm) || { k: r.descricao_norm, nome: r.descricao, cat: r.categoria, mks: new Set(), min: Infinity }; x.mks.add(r.mercado); x.min = Math.min(x.min, r.preco_unit); g.set(r.descricao_norm, x); });
+  const lst = [...g.values()].slice(0, 20);
+  box.innerHTML = lst.length ? `<div class="uni-list">${lst.map((x) => `<button class="mrow" data-act="uniPick" data-v="${esc(x.k)}" data-n="${esc(x.nome)}"><span style="font-size:22px">${cat(x.cat).em}</span><div style="min-width:0"><div class="nm">${nice(x.nome)}</div><div class="meta">${[...x.mks].slice(0, 2).map(esc).join(", ")}${x.mks.size > 2 ? ` e mais ${x.mks.size - 2}` : ""} · a partir de ${fmt(x.min)}</div></div><span class="chev" style="margin-left:auto">›</span></button>`).join("")}</div>`
+    : `<p class="proto" style="margin:14px 0">Nenhum produto encontrado com esse nome.</p>`;
+}
+async function uniConfirmar() {
+  const U = S.uni; const outro = document.getElementById("uniOutro")?.value.trim();
+  const nome = outro || U.nome;
+  U.loading = true; U.erro = null; renderSheet();
+  const { data, error } = await sb.rpc("unificar_produtos", { p_convite: ls.get("convite", ""), p_de: U.de, p_para: U.alvo.k, p_nome: nome });
+  U.loading = false;
+  if (error) { U.erro = /convite/i.test(error.message) ? "Falta o código de convite. Abra o app pelo link que você recebeu." : "Não consegui unificar agora. Tente de novo."; renderSheet(); return; }
+  const final = data.nome;
+  [U.de, U.alvo.k].forEach((k) => { if (S.list[k]) { S.list[final] = (S.list[final] || 0) + S.list[k]; if (k !== final) delete S.list[k]; } });
+  saveList(); closeSheet(); toast("✓ Produtos unificados"); openProd(final); if (S.tab === "search") renderResults();
+}
+document.addEventListener("input", (e) => {
+  if (e.target.id !== "uniQ") return;
+  S.uni.q = e.target.value; clearTimeout(uniTimer); uniTimer = setTimeout(renderUniRes, 300);
+});
 
 /* ================= SHEETS ================= */
 function openSheet(k) { S.sheet = k; renderSheet(); document.getElementById("backdrop").classList.add("show"); requestAnimationFrame(() => document.getElementById("sheet").classList.add("show")); }
@@ -353,6 +385,32 @@ function renderSheet() {
       <div class="fgroup"><h4>Preço informado nos últimos</h4><div class="seg">${[[0, "Qualquer"], [3, "3 dias"], [7, "7 dias"], [30, "30 dias"]].map(([v, l]) => `<button class="${S.f.dias === v ? "on" : ""}" data-act="setDias" data-v="${v}">${l}</button>`).join("")}</div></div>
     </div>
     <div class="sheet-foot"><button class="btn btn-red btn-block" data-act="applyFilters">Ver resultados</button></div>`;
+  }
+  if (k === "uni") {
+    const U = S.uni;
+    if (!U.alvo) {
+      el.innerHTML = `<div class="grab"></div><div class="sheet-h"><h3>Unificar produto</h3></div>
+      <div class="sheet-body">
+        <p class="uni-sub">Procure o mesmo produto com outro nome. Os preços dos dois passam a aparecer juntos, e as próximas notas já entram unificadas.</p>
+        <div class="uni-atual"><small>Este produto</small><b>${nice(U.deNome)}</b></div>
+        <div class="searchbox uni-q">${I.search}<input id="uniQ" type="search" placeholder="Ex.: leite italac" value="${esc(U.q)}" autocomplete="off"></div>
+        <div id="uniRes"></div>
+      </div><div style="height:12px"></div>`;
+      renderUniRes();
+      setTimeout(() => document.getElementById("uniQ")?.focus(), 250);
+    } else {
+      const ops = [U.alvo.nome, U.deNome];
+      el.innerHTML = `<div class="grab"></div><div class="sheet-h"><h3>Confirmar unificação</h3></div>
+      <div class="sheet-body">
+        <div class="uni-par"><div>${nice(U.deNome)}</div><span>+</span><div>${nice(U.alvo.nome)}</div></div>
+        <div class="fgroup"><h4>Qual nome fica?</h4>
+          ${ops.map((o, i) => `<button class="mrow ${U.nome === o ? "on" : ""}" data-act="uniNome" data-v="${i}"><div class="nm">${nice(o)}</div><span class="radio"></span></button>`).join("")}
+          <div class="form" style="margin-top:8px"><label>Ou escreva um nome melhor<input id="uniOutro" placeholder="Ex.: Leite Integral Italac 1L" value="${ops.includes(U.nome) ? "" : esc(nice(U.nome).replace(/&amp;/g, "&"))}"></label></div>
+        </div>
+        ${U.erro ? `<div class="err" style="margin:6px 0 0">${esc(U.erro)}</div>` : ""}
+      </div>
+      <div class="sheet-foot"><button class="btn btn-ghost" data-act="uniVoltar">Voltar</button><button class="btn btn-red" style="flex:1" data-act="uniOk" ${U.loading ? "disabled" : ""}>${U.loading ? "Unificando…" : "Unificar"}</button></div>`;
+    }
   }
   if (k === "editMk") {
     const m = S.mercados.find((x) => x.cnpj === S.editCnpj) || {};
@@ -526,6 +584,11 @@ document.addEventListener("click", async (e) => {
     case "pickCity": S.cidade = v || null; ls.set("cidade", S.cidade); S.f.bairros = []; S.f.mks = []; closeSheet(); render(); break;
     case "clearAll": resetF(); S.q = ""; if (S.sheet) renderSheet(); render(); break;
     case "openProd": openProd(v); break;
+    case "uniOpen": { const nomeAtual = document.querySelector("#over .prod-hero h1")?.textContent || v; S.uni = { de: v, deNome: nomeAtual, q: "", alvo: null }; openSheet("uni"); break; }
+    case "uniPick": S.uni.alvo = { k: v, nome: el.dataset.n }; S.uni.nome = el.dataset.n; S.uni.erro = null; renderSheet(); break;
+    case "uniNome": S.uni.nome = [S.uni.alvo.nome, S.uni.deNome][+v]; const o = document.getElementById("uniOutro"); if (o) o.value = ""; renderSheet(); break;
+    case "uniVoltar": S.uni.alvo = null; renderSheet(); break;
+    case "uniOk": uniConfirmar(); break;
     case "editMk": S.editCnpj = v; S.editErro = null; openSheet("editMk"); break;
     case "saveMk": {
       const val = (id) => document.getElementById(id)?.value.trim() || "";
