@@ -193,7 +193,7 @@ function vSend() {
       <hr><div class="c">${n.emitida_em ? "Nota de " + new Date(n.emitida_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "Data não lida (vamos usar hoje)"}</div><hr>
       ${n.itens.map((it, i) => `<div class="ritem"><div style="flex:1;min-width:0">
           <div class="raw">${it.descricao_original ? esc(it.descricao_original) + " · " : ""}${String(it.qtd).replace(".", ",")} ${esc(it.unidade)} x ${fmt(it.preco_unit)}</div>
-          <input class="ed match" data-ed="itens.${i}.descricao" value="${nice(it.descricao)}">
+          <input class="ed match" data-ed="itens.${i}.descricao" value="${nice(it.descricao)}">${it.conhecido ? `<span class="known">✓ já na base</span>` : ""}
           <select class="ed-cat" data-ed="itens.${i}.categoria">${CATS.map((c) => `<option value="${c.id}" ${c.id === it.categoria ? "selected" : ""}>${c.em} ${c.nm}</option>`).join("")}</select>
           <span class="unit">Vai para a base: R$ <input class="ed ed-num" inputmode="decimal" data-ed="itens.${i}.preco_unit" value="${String(it.preco_unit.toFixed(2)).replace(".", ",")}">${unid(it.unidade)}</span></div>
         <div style="text-align:right"><div class="v">${fmt(it.total)}</div><button class="rm" data-act="rmItem" data-v="${i}" aria-label="Remover">✕</button></div></div>`).join("")}
@@ -338,7 +338,8 @@ async function openProd(k) {
       <p class="proto">Só aparecem mercados onde o produto veio com esse mesmo nome na nota.</p>
       ${(S.sugestoes || []).filter((s) => s.a === k || s.b === k).map((s) => `<div class="sug" style="margin-top:14px"><div class="sug-nome">🔎 A IA acha que este pode ser o mesmo produto que <b>${nice(s.a === k ? s.b : s.a)}</b></div>
         <div class="sug-act"><button class="btn btn-ghost btn-sm" data-act="sugNao" data-v="${s.id}">Não são iguais</button><button class="btn btn-red btn-sm" data-act="sugSim" data-v="${s.id}">Unificar</button></div></div>`).join("")}
-      <button class="uni-btn" data-act="uniOpen" data-v="${esc(k)}">🔗 Viu este produto com outro nome? <b>Unificar</b></button>
+      <div class="uni-row"><button class="uni-btn" data-act="renOpen" data-v="${esc(k)}">✏️ Nome errado ou incompleto? <b>Corrigir</b></button>
+      <button class="uni-btn" data-act="uniOpen" data-v="${esc(k)}">🔗 Viu com outro nome? <b>Unificar</b></button></div>
     </section>
     <div class="addbar">${qn ? `<div class="stepper"><button data-act="dec" data-v="${esc(k)}">−</button><span>${qn}</span><button data-act="inc" data-v="${esc(k)}">+</button></div><button class="btn btn-yellow" style="flex:1" data-act="tab" data-v="list">Ver minha lista</button>`
       : `<button class="btn btn-red btn-block" data-act="inc" data-v="${esc(k)}">+ Adicionar à lista</button>`}</div>`;
@@ -427,6 +428,16 @@ function renderSheet() {
       <div class="sheet-foot"><button class="btn btn-ghost" data-act="uniVoltar">Voltar</button><button class="btn btn-red" style="flex:1" data-act="uniOk" ${U.loading ? "disabled" : ""}>${U.loading ? "Unificando…" : "Unificar"}</button></div>`;
     }
   }
+  if (k === "ren") {
+    const R = S.ren;
+    el.innerHTML = `<div class="grab"></div><div class="sheet-h"><h3>Corrigir nome</h3></div>
+    <div class="sheet-body">
+      <p class="uni-sub">O nome novo vale em todos os mercados. O app guarda o antigo: as próximas notas que vierem com ele já entram com o nome corrigido.</p>
+      <div class="form"><label>Nome do produto<input id="renNome" value="${nice(R.de)}" placeholder="Ex.: Leite Integral Italac 1L"></label></div>
+      ${R.erro ? `<div class="err" style="margin:10px 0 0">${esc(R.erro)}</div>` : ""}
+    </div>
+    <div class="sheet-foot"><button class="btn btn-ghost" data-act="closeSheet">Cancelar</button><button class="btn btn-red" style="flex:1" data-act="renOk" ${R.loading ? "disabled" : ""}>${R.loading ? "Salvando…" : "Salvar"}</button></div>`;
+  }
   if (k === "editMk") {
     const m = S.mercados.find((x) => x.cnpj === S.editCnpj) || {};
     el.innerHTML = `<div class="grab"></div><div class="sheet-h"><h3>Editar mercado</h3></div>
@@ -510,11 +521,22 @@ function animarPassos() {
     st.forEach((e, j) => { e.classList.toggle("done", j < i); e.classList.toggle("doing", j === i); });
   }, 3500);
 }
+async function aplicaApelidos(n) {
+  try {
+    if (n?.mercado?.cnpj?.length !== 14) return;
+    const origs = (n.itens || []).map((i) => i.descricao_original).filter(Boolean);
+    if (!origs.length) return;
+    const { data: aps } = await sb.from("apelidos_mercado").select("original,nome,categoria").eq("cnpj", n.mercado.cnpj).in("original", origs);
+    (aps || []).forEach((a) => n.itens.forEach((i) => {
+      if (i.descricao_original === a.original) { i.descricao = a.nome; i.descricao_norm = a.nome; if (a.categoria) i.categoria = a.categoria; i.conhecido = true; }
+    }));
+  } catch {}
+}
 async function lerFoto() {
   const E = S.envio; if (!E.fotos?.length) return;
   E.erro = null; E.loading = true; E.modo = "foto"; render(); window.scrollTo(0, 0); animarPassos();
   for (let tent = 1; tent <= 3; tent++) {
-    try { const n = await post("ler-foto", { imagens: E.fotos }); E.nota = n; E.origem = "foto"; E.step = "revisao"; E.erro = null; break; }
+    try { const n = await post("ler-foto", { imagens: E.fotos }); await aplicaApelidos(n); E.nota = n; E.origem = "foto"; E.step = "revisao"; E.erro = null; break; }
     catch (e) {
       E.erro = e.message;
       if (!/ocupado/i.test(e.message) || tent === 3) { if (tent === 3) E.erro = "O serviço de leitura está muito ocupado agora. Suas fotos continuam aqui: tente de novo em alguns minutos."; break; }
@@ -529,7 +551,7 @@ async function sendPreview() {
   E.modo = "texto";
   if ((E.texto || "").trim().length < 40) { E.erro = "Cole o texto da página da nota antes de continuar."; render(); return; }
   E.erro = null; E.loading = true; render();
-  try { const n = await post("enviar-nota", { texto: E.texto, salvar: false }); E.nota = n; E.origem = "texto"; E.step = "revisao"; }
+  try { const n = await post("enviar-nota", { texto: E.texto, salvar: false }); await aplicaApelidos(n); E.nota = n; E.origem = "texto"; E.step = "revisao"; }
   catch (e) { E.erro = e.message; }
   E.loading = false; render(); window.scrollTo(0, 0);
 }
@@ -605,6 +627,18 @@ document.addEventListener("click", async (e) => {
     case "uniNome": S.uni.nome = [S.uni.alvo.nome, S.uni.deNome][+v]; const o = document.getElementById("uniOutro"); if (o) o.value = ""; renderSheet(); break;
     case "uniVoltar": S.uni.alvo = null; renderSheet(); break;
     case "uniOk": uniConfirmar(); break;
+    case "renOpen": S.ren = { de: v }; openSheet("ren"); setTimeout(() => document.getElementById("renNome")?.focus(), 250); break;
+    case "renOk": {
+      const R = S.ren; const nome = document.getElementById("renNome")?.value.trim();
+      if (!nome) { R.erro = "Escreva o nome."; renderSheet(); break; }
+      R.loading = true; R.erro = null; renderSheet();
+      const { data, error } = await sb.rpc("renomear_produto", { p_convite: ls.get("convite", ""), p_de: R.de, p_nome: nome });
+      R.loading = false;
+      if (error || !data?.nome) { R.erro = /convite/i.test(error?.message || "") ? "Falta o código de convite. Abra o app pelo link que você recebeu." : "Não consegui salvar agora. Tente de novo."; renderSheet(); break; }
+      const final = data.nome;
+      if (S.list[R.de]) { S.list[final] = (S.list[final] || 0) + S.list[R.de]; if (R.de !== final) delete S.list[R.de]; saveList(); }
+      closeSheet(); toast("✓ Nome atualizado"); openProd(final); if (S.tab === "search") renderResults();
+      break; }
     case "verSug": S.verTodasSug = true; render(); break;
     case "sugSim": { const s = S.sugestoes.find((x) => x.id === +v); if (!s) break;
       S.uni = { de: s.a, deNome: s.a, q: "", alvo: { k: s.b, nome: s.b }, nome: s.nome || s.b, sugId: s.id }; openSheet("uni"); break; }
