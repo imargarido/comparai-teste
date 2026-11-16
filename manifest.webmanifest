@@ -1,15 +1,15 @@
 {
-  "name": "Comparaí · versão de teste",
-  "short_name": "Comparaí",
-  "description": "Compare preços de supermercado com notas fiscais da comunidade.",
+  "name": "comparAI · versão de teste",
+  "short_name": "comparAI",
+  "description": "Preço de supermercado, comparado de verdade.",
   "start_url": "./?c=feira-7bff2f",
   "display": "standalone",
-  "background_color": "#FFFBF3",
-  "theme_color": "#E52421",
+  "background_color": "#FBF4EA",
+  "theme_color": "#FBF4EA",
   "lang": "pt-BR",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

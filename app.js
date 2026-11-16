@@ -32,7 +32,7 @@ const ago = (d) => (d === 0 ? "hoje" : d === 1 ? "ontem" : `há ${d} dias`);
 const dlbl = (iso) => new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 const fresh = (iso) => { const d = days(iso); return `<span class="fresh ${d <= 2 ? "f-new" : d <= 7 ? "f-mid" : "f-old"}"><i></i>${ago(d)} · ${dlbl(iso)}</span>`; };
 const initials = (n) => String(n).split(" ").filter((w) => w.length > 2).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "M";
-const COLORS = ["#E52421", "#F08A00", "#178A4C", "#1F5FBF", "#7A3FB0", "#C2185B", "#00838F"];
+const COLORS = ["#DC3220", "#F08A00", "#178A4C", "#1F5FBF", "#7A3FB0", "#C2185B", "#00838F"];
 const color = (s) => COLORS[[...String(s)].reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length];
 const I = {
   search: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
@@ -86,7 +86,7 @@ async function buscar() {
 }
 
 /* ================= COMPONENTES ================= */
-const logo = () => `<div class="logo"><span class="logo-mark">${I.search}</span><span>Compara<b>í</b><span class="beta">TESTE</span></span></div>`;
+const logo = () => `<div class="logo"><span class="wm">comparAI</span><span class="beta">TESTE</span></div>`;
 const locChip = () => `<button class="loc" data-act="openCity">${I.pin} ${esc(S.cidade || "Todas as cidades")} ▾</button>`;
 const skel = (n = 4) => `<div class="list">${Array.from({ length: n }, () => '<div class="skel"></div>').join("")}</div>`;
 
@@ -109,8 +109,9 @@ function vHome() {
   const st = S.stats || { notas: "…", produtos: "…", mercados: "…" };
   const nmerc = S.resumo.filter((m) => !S.cidade || m.cidade === S.cidade).sort((a, b) => b.produtos - a.produtos).slice(0, 6);
   return `
-  <header class="top">
+  <header class="top home">
     <div class="brand">${logo()}</div>
+    <p class="tagline">Preço de supermercado, comparado de verdade</p>
     <h1 class="hello">Onde está mais barato<br>perto de <span>você</span>?</h1>
     <button class="searchbox" data-act="goSearch" style="width:100%;text-align:left">${I.search}<span style="color:#A4978E;font-size:16px">Busque arroz, café, leite…</span></button>
     <div class="stats-top"><div><b>${st.notas}</b>notas</div><div><b>${st.produtos}</b>produtos</div><div><b>${st.mercados}</b>mercados</div></div>
