@@ -140,7 +140,7 @@ function vHome() {
     <div style="font-size:38px">📣</div>
     <h3>Chame amigos e parentes</h3>
     <p>Quanto mais gente enviando notas, mais mercados e preços na sua região, e melhor a comparação pra todo mundo.</p>
-    <a class="btn btn-wa btn-block" href="https://wa.me/?text=${encodeURIComponent("Estou usando o Comparaí pra comparar preços de supermercado perto de casa. Entra aí e envia as notas das suas compras também: " + location.origin + location.pathname + (ls.get("convite", "") ? "?c=" + ls.get("convite", "") : ""))}" target="_blank" rel="noopener">Compartilhar no WhatsApp</a>
+    <a class="btn btn-wa btn-block" href="https://wa.me/?text=${encodeURIComponent("Estou usando o comparAI pra comparar preços de supermercado perto de casa. Entra aí e envia as notas das suas compras também: " + location.origin + location.pathname + (ls.get("convite", "") ? "?c=" + ls.get("convite", "") : ""))}" target="_blank" rel="noopener">Compartilhar no WhatsApp</a>
   </div></section>
   <p class="proto">Versão de teste. Os preços vêm das notas fiscais enviadas pelos testadores.</p>`;
 }
