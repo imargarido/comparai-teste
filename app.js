@@ -55,7 +55,7 @@ const saveList = () => ls.set("lista", S.list);
 /* ================= DADOS ================= */
 async function loadMeta() {
   const [m, st, rc, rs, sg] = await Promise.all([
-    sb.from("mercados").select("cnpj,nome,endereco,bairro,cidade").order("nome"),
+    sb.from("mercados").select("cnpj,nome,razao_social,endereco,bairro,cidade").order("nome"),
     sb.rpc("estatisticas"),
     sb.from("notas_recentes").select("*"),
     sb.from("resumo_mercados").select("*"),
@@ -194,11 +194,15 @@ function vSend() {
   if (E.step === "revisao") { const n = E.nota; const tot = n.itens.reduce((s, i) => s + (+i.total || 0), 0); return `
     <header class="top slim"><div class="page-title">Confira a nota</div><div class="page-sub">A IA leu ${n.itens.length} produto${n.itens.length > 1 ? "s" : ""}. Toque para corrigir o que estiver errado.</div></header>
     <div class="receipt">
-      <div class="c"><input class="ed ed-c mk" data-ed="mercado.nome" value="${esc(n.mercado.nome)}" aria-label="Nome do mercado">
-        <input class="ed ed-c" data-ed="mercado.endereco" value="${esc(n.mercado.endereco || "")}" placeholder="Endereço (rua e número)">
-        <div class="ed-row"><input class="ed ed-c" data-ed="mercado.bairro" value="${esc(n.mercado.bairro || "")}" placeholder="Bairro"><input class="ed ed-c" data-ed="mercado.cidade" value="${esc(n.mercado.cidade || "")}" placeholder="Cidade"></div>
-        <div class="mk-hint">💡 Veio a razão social? Troque pelo nome conhecido do mercado, e confirme bairro e cidade.</div>
-        ${n.mercado.cnpj?.length === 14 ? `CNPJ ${n.mercado.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5")}` : `<span style="color:var(--red)">CNPJ não lido</span>`}</div>
+      <div class="mk-form">
+        ${n.mercado.conhecido ? `<div class="known" style="margin:0 0 8px">✓ Mercado já cadastrado</div>` : ""}
+        <label class="mkf">Nome fantasia <small>é o nome que aparece no app</small><input class="ed mk" data-ed="mercado.nome" value="${esc(n.mercado.nome)}" placeholder="Ex.: Assaí Atacadista"></label>
+        <label class="mkf">Razão social <small>como vem na nota</small><input class="ed" data-ed="mercado.razao_social" value="${esc(n.mercado.razao_social || "")}" placeholder="Ex.: Sendas Distribuidora S/A"></label>
+        <label class="mkf">Endereço<input class="ed" data-ed="mercado.endereco" value="${esc(n.mercado.endereco || "")}" placeholder="Rua e número"></label>
+        <div class="ed-row"><label class="mkf">Bairro<input class="ed" data-ed="mercado.bairro" value="${esc(n.mercado.bairro || "")}" placeholder="Bairro"></label><label class="mkf">Cidade<input class="ed" data-ed="mercado.cidade" value="${esc(n.mercado.cidade || "")}" placeholder="Cidade"></label></div>
+        ${!n.mercado.conhecido ? `<div class="mk-hint">💡 Mercado novo: confira o nome fantasia (o nome que todo mundo conhece), o bairro e a cidade.</div>` : ""}
+        <div class="c" style="margin-top:6px">${n.mercado.cnpj?.length === 14 ? `CNPJ ${n.mercado.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5")}` : `<span style="color:var(--red)">CNPJ não lido</span>`}</div>
+      </div>
       <hr><div class="c">${n.emitida_em ? "Nota de " + new Date(n.emitida_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "Data não lida (vamos usar hoje)"}</div><hr>
       ${n.itens.map((it, i) => `<div class="ritem"><div style="flex:1;min-width:0">
           <div class="raw">${it.descricao_original ? esc(it.descricao_original) + " · " : ""}${String(it.qtd).replace(".", ",")} ${esc(it.unidade)} x ${fmt(it.preco_unit)}</div>
@@ -244,7 +248,7 @@ function vSend() {
         <div class="tips"><div>💡 Boa luz</div><div>📄 Nota esticada</div><div>📱 Celular reto</div></div>`}
     </section>
     <section class="sec"><div class="howto" style="padding:13px 15px"><h4 style="font-size:13.5px">📝 Depois da leitura, confira o mercado</h4>
-      <p style="font-size:12.5px;color:var(--muted);margin-top:3px">A nota costuma trazer a razão social (ex.: "Sendas Distribuidora"). Troque pelo nome que todo mundo conhece (ex.: "Assaí") e confirme bairro e cidade: é isso que coloca o mercado certinho na busca por região.</p></div></section>
+      <p style="font-size:12.5px;color:var(--muted);margin-top:3px">A nota traz a razão social (ex.: "Sendas Distribuidora S/A"). Confira o <b>nome fantasia</b>, que é o nome que todo mundo conhece e o que aparece no app (ex.: "Assaí"), e confirme bairro e cidade: é isso que coloca o mercado certinho na busca por região.</p></div></section>
     ${!convite ? `<section class="sec"><div class="howto" style="padding:14px"><h4 style="font-size:14px">Falta o código de convite</h4><p style="font-size:12.5px;color:var(--muted)">É só uma vez. Digite o código que veio junto com o link do app (ex.: feira-abc123).</p>
       <div class="code-in"><input id="convite" placeholder="ex.: feira-abc123" autocapitalize="off"><button class="btn btn-ghost btn-sm" data-act="saveCode">Salvar</button></div></div></section>` : ""}
     <section class="sec"><details class="alt" ${E.modo === "texto" ? "open" : ""}><summary>Prefere colar o texto da nota da Sefaz?</summary>
@@ -453,7 +457,8 @@ function renderSheet() {
     const m = S.mercados.find((x) => x.cnpj === S.editCnpj) || {};
     el.innerHTML = `<div class="grab"></div><div class="sheet-h"><h3>Editar mercado</h3></div>
     <div class="sheet-body"><div class="form">
-      <label>Nome do mercado<input id="mkNome" value="${esc(m.nome || "")}" placeholder="Ex.: Assaí Atacadista"></label>
+      <label>Nome fantasia <small class="lbl-sub">aparece no app</small><input id="mkNome" value="${esc(m.nome || "")}" placeholder="Ex.: Assaí Atacadista"></label>
+      <label>Razão social <small class="lbl-sub">só no cadastro</small><input id="mkRazao" value="${esc(m.razao_social || "")}" placeholder="Ex.: Sendas Distribuidora S/A"></label>
       <label>Endereço<input id="mkEnd" value="${esc(m.endereco || "")}" placeholder="Rua e número"></label>
       <div class="two"><label>Bairro<input id="mkBairro" value="${esc(m.bairro || "")}"></label><label>Cidade<input id="mkCidade" value="${esc(m.cidade || "")}"></label></div>
       ${S.editErro ? `<div class="err" style="margin:4px 0 0">${esc(S.editErro)}</div>` : ""}
@@ -662,7 +667,7 @@ document.addEventListener("click", async (e) => {
       const val = (id) => document.getElementById(id)?.value.trim() || "";
       try {
         el.disabled = true; el.textContent = "Salvando…";
-        await post("editar", { acao: "mercado", cnpj: S.editCnpj, nome: val("mkNome"), endereco: val("mkEnd"), bairro: val("mkBairro"), cidade: val("mkCidade") });
+        await post("editar", { acao: "mercado", cnpj: S.editCnpj, nome: val("mkNome"), razao_social: val("mkRazao"), endereco: val("mkEnd"), bairro: val("mkBairro"), cidade: val("mkCidade") });
         closeSheet(); await loadMeta(); render(); toast("✓ Mercado atualizado");
       } catch (err) { S.editErro = err.message; renderSheet(); }
       break; }
